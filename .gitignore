@@ -1,0 +1,16 @@
+*~
+.*.swp
+.swp
+*.log
+.DS_Store
+.vscode/
+.zig-cache/
+zig-out/
+.zigmod
+deps.zig
+files.zig
+
+.env
+.env.*
+!.env.example
+!.env.test
