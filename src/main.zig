@@ -1,5 +1,6 @@
 const std = @import("std");
-const root = @import("root.zig");
+const git = @import("git.zig");
+const builtin = @import("builtin");
 const process = std.process;
 const Allocator = std.mem.Allocator;
 const log = std.log;
@@ -9,11 +10,17 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
+    if (comptime builtin.mode == .Debug) {
+        std.log.warn("This is a debug build. Performance will be very poor.", .{});
+        std.log.warn("You should only use a debug build for developing Zenpai.", .{});
+        std.log.warn("Otherwise, please rebuild in a release mode.\n", .{});
+    }
+
     try generateCommit(allocator);
 }
 
 fn generateCommit(allocator: Allocator) !void {
-    const git = root.Git.init(allocator);
+    const git = git.Git.init(allocator);
 
     if (!try git.isGitRepo()) {
         std.log.err("Not a Git repository.", .{});

@@ -7,30 +7,6 @@ pub const ExecResult = struct {
     stderr: []const u8,
 };
 
-pub fn exec(argv: []const []const u8, allocator: Allocator) !ExecResult {
-    var child = std.process.Child.init(argv, allocator);
-    child.stdout_behavior = .Pipe;
-    child.stderr_behavior = .Pipe;
-
-    try child.spawn();
-
-    const stdout = try child.stdout.?.readToEndAlloc(allocator, std.math.maxInt(usize));
-    const stderr = try child.stderr.?.readToEndAlloc(allocator, std.math.maxInt(usize));
-
-    const term = try child.wait();
-
-    const exit_code = switch (term) {
-        .Exited => |code| code,
-        else => return error.CommandFailed,
-    };
-
-    return ExecResult{
-        .exit_code = exit_code,
-        .stdout = stdout,
-        .stderr = stderr,
-    };
-}
-
 pub const Git = struct {
     allocator: Allocator,
 
@@ -102,3 +78,27 @@ pub const Git = struct {
         }
     }
 };
+
+fn exec(argv: []const []const u8, allocator: Allocator) !ExecResult {
+    var child = std.process.Child.init(argv, allocator);
+    child.stdout_behavior = .Pipe;
+    child.stderr_behavior = .Pipe;
+
+    try child.spawn();
+
+    const stdout = try child.stdout.?.readToEndAlloc(allocator, std.math.maxInt(usize));
+    const stderr = try child.stderr.?.readToEndAlloc(allocator, std.math.maxInt(usize));
+
+    const term = try child.wait();
+
+    const exit_code = switch (term) {
+        .Exited => |code| code,
+        else => return error.CommandFailed,
+    };
+
+    return ExecResult{
+        .exit_code = exit_code,
+        .stdout = stdout,
+        .stderr = stderr,
+    };
+}
