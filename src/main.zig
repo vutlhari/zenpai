@@ -1,8 +1,9 @@
 const std = @import("std");
 const git = @import("git.zig");
+const llm = @import("llm.zig");
 const builtin = @import("builtin");
-const process = std.process;
 const Allocator = std.mem.Allocator;
+const process = std.process;
 const log = std.log;
 
 pub fn main() !void {
@@ -20,19 +21,21 @@ pub fn main() !void {
 }
 
 fn generateCommit(allocator: Allocator) !void {
-    const git = git.Git.init(allocator);
+    const gitClient = git.Git.init(allocator);
+    var openai = try llm.Client.init(allocator, null);
+    defer openai.deinit();
 
-    if (!try git.isGitRepo()) {
+    if (!try gitClient.isGitRepo()) {
         std.log.err("Not a Git repository.", .{});
         return;
     }
 
-    if (!try git.hasChanges()) {
+    if (!try gitClient.hasChanges()) {
         std.log.info("No changes to commit.", .{});
         return;
     }
 
-    const files_to_stage = try git.filesToBeStaged();
+    const files_to_stage = try gitClient.filesToBeStaged();
     if (files_to_stage == null) {
         std.log.info("No changes to commit.", .{});
         return;
@@ -55,11 +58,33 @@ fn generateCommit(allocator: Allocator) !void {
         return;
     }
 
-    const curr_branch = try git.currentBranch();
+    const curr_branch = try gitClient.currentBranch();
     if (std.mem.eql(u8, curr_branch, "main") or std.mem.eql(u8, curr_branch, "master")) {
-        try git.createBranch("wip");
+        try gitClient.createBranch("wip");
     }
 
-    try git.stageFiles();
+    var messages = std.ArrayList(llm.Message).init(allocator);
+    try messages.append(llm.Message.system("You are a helpful assistant"));
+    try messages.append(llm.Message.user("Generate a simple commit message"));
+
+    const payload = llm.ChatPayload{
+        .model = "gpt-4o",
+        .messages = messages.items,
+        .max_tokens = 1000,
+        .temperature = 0.2,
+    };
+
+    var completion = try openai.chat(payload, false);
+    defer completion.deinit();
+
+    // Print the completion content
+    if (completion.value.choices.len > 0) {
+        const message_content = completion.value.choices[0].message.content;
+        try stdout.print("Completion: {s}\n", .{message_content});
+    } else {
+        try stdout.print("No completion choices received.\n", .{});
+    }
+
+    try gitClient.stageFiles();
     try stdout.print("Files staged successfully.\n", .{});
 }
