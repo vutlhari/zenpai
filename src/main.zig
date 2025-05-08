@@ -20,19 +20,19 @@ pub fn main() !void {
 }
 
 fn generateCommit(allocator: Allocator) !void {
-    const git = git.Git.init(allocator);
+    const gitClient = git.Git.init(allocator);
 
-    if (!try git.isGitRepo()) {
+    if (!try gitClient.isGitRepo()) {
         std.log.err("Not a Git repository.", .{});
         return;
     }
 
-    if (!try git.hasChanges()) {
+    if (!try gitClient.hasChanges()) {
         std.log.info("No changes to commit.", .{});
         return;
     }
 
-    const files_to_stage = try git.filesToBeStaged();
+    const files_to_stage = try gitClient.filesToBeStaged();
     if (files_to_stage == null) {
         std.log.info("No changes to commit.", .{});
         return;
@@ -55,11 +55,11 @@ fn generateCommit(allocator: Allocator) !void {
         return;
     }
 
-    const curr_branch = try git.currentBranch();
+    const curr_branch = try gitClient.currentBranch();
     if (std.mem.eql(u8, curr_branch, "main") or std.mem.eql(u8, curr_branch, "master")) {
-        try git.createBranch("wip");
+        try gitClient.createBranch("wip");
     }
 
-    try git.stageFiles();
+    try gitClient.stageFiles();
     try stdout.print("Files staged successfully.\n", .{});
 }
