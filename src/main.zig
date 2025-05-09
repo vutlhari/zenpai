@@ -7,6 +7,18 @@ const Allocator = std.mem.Allocator;
 const process = std.process;
 const log = std.log;
 
+const CommitMessage = struct {
+    subject: []const u8,
+    body: []const u8,
+    footer: []const u8,
+
+    pub fn deinit(self: CommitMessage, allocator: Allocator) void {
+        allocator.free(self.subject);
+        allocator.free(self.body);
+        allocator.free(self.footer);
+    }
+};
+
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
@@ -23,8 +35,6 @@ pub fn main() !void {
 
 fn generateCommit(allocator: Allocator) !void {
     const gitClient = git.Git.init(allocator);
-    var openai = try llm.Client.init(allocator, null);
-    defer openai.deinit();
 
     if (!try gitClient.isGitRepo()) {
         std.log.err("Not a Git repository.", .{});
@@ -70,6 +80,19 @@ fn generateCommit(allocator: Allocator) !void {
     const diff = try gitClient.getStagedDiff();
     defer allocator.free(diff);
 
+    const commitMsg = try generateCommitMsg(allocator, diff) orelse {
+        std.log.info("No commit message generated.", .{});
+        return;
+    };
+    defer commitMsg.deinit(allocator);
+
+    try gitClient.commit(commitMsg.subject);
+}
+
+fn generateCommitMsg(allocator: Allocator, diff: []const u8) !?CommitMessage {
+    var openai = try llm.Client.init(allocator, null);
+    defer openai.deinit();
+
     const user_prompt = try std.fmt.allocPrint(allocator, "Here is the diff:\n\n{s}", .{diff});
     defer allocator.free(user_prompt);
 
@@ -87,10 +110,21 @@ fn generateCommit(allocator: Allocator) !void {
     var completion = try openai.chat(payload, false);
     defer completion.deinit();
 
-    if (completion.value.choices.len > 0) {
-        const message_content = completion.value.choices[0].message.content;
-        try stdout.print("Completion: {s}\n", .{message_content});
-    } else {
-        try stdout.print("No completion choices received.\n", .{});
+    if (completion.value.choices.len == 0) {
+        return null;
     }
+
+    const msg_content = completion.value.choices[0].message.content;
+    const parsed = std.json.parseFromSliceLeaky(CommitMessage, allocator, msg_content, .{
+        .ignore_unknown_fields = true,
+    }) catch |err| {
+        std.log.err("Failed to parse JSON: {}", .{err});
+        return null;
+    };
+
+    return CommitMessage{
+        .subject = try allocator.dupe(u8, parsed.subject),
+        .body = try allocator.dupe(u8, parsed.body),
+        .footer = try allocator.dupe(u8, parsed.footer),
+    };
 }
