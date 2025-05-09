@@ -101,10 +101,10 @@ fn generateCommitMsg(allocator: Allocator, diff: []const u8) !?CommitMessage {
     try messages.append(llm.Message.user(user_prompt));
 
     const payload = llm.ChatPayload{
-        .model = "gpt-4o",
+        .model = "gpt-3.5-turbo",
         .messages = messages.items,
-        .max_tokens = 1000,
-        .temperature = 0.2,
+        .max_tokens = 1024,
+        .temperature = 0.7,
     };
 
     var completion = try openai.chat(payload, false);

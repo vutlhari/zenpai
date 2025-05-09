@@ -7,6 +7,9 @@ pub const ExecResult = struct {
     stderr: []const u8,
 };
 
+// For trimming
+const whitespace = " \n";
+
 pub const Git = struct {
     allocator: Allocator,
 
@@ -20,7 +23,7 @@ pub const Git = struct {
             return false;
         }
 
-        return std.mem.eql(u8, std.mem.trim(u8, result.stdout, " \n"), "true");
+        return std.mem.eql(u8, std.mem.trim(u8, result.stdout, whitespace), "true");
     }
 
     pub fn hasChanges(self: Git) !bool {
@@ -38,7 +41,7 @@ pub const Git = struct {
             return error.CommandFailed;
         }
 
-        return std.mem.trim(u8, result.stdout, " \n");
+        return std.mem.trim(u8, result.stdout, whitespace);
     }
 
     pub fn filesToBeStaged(self: Git) !?[]const u8 {
