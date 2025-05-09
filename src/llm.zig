@@ -24,7 +24,6 @@ pub const Message = struct {
 pub const Role = struct {
     pub const system = "system";
     pub const user = "user";
-    pub const assistant = "assistant";
 };
 
 pub const ChatResponse = struct {
@@ -106,7 +105,7 @@ pub const Client = struct {
         };
     }
 
-    pub fn chat(self: *Client, payload: ChatPayload, verbose: bool) !std.json.Parsed(ChatResponse) {
+    pub fn chat(self: *Client, payload: ChatPayload) !std.json.Parsed(ChatResponse) {
         const options = .{
             .model = payload.model,
             .messages = payload.messages,
@@ -116,7 +115,7 @@ pub const Client = struct {
         const body = try std.json.stringifyAlloc(self.allocator, options, .{ .whitespace = .indent_2 });
         defer self.allocator.free(body);
 
-        var req = try self.makeCall("/chat/completions", body, verbose);
+        var req = try self.makeCall("/chat/completions", body);
         defer req.deinit();
 
         if (req.response.status != .ok) {
@@ -136,7 +135,7 @@ pub const Client = struct {
         return parsed;
     }
 
-    fn makeCall(self: *Client, endpoint: []const u8, body: []const u8, _: bool) !std.http.Client.Request {
+    fn makeCall(self: *Client, endpoint: []const u8, body: []const u8) !std.http.Client.Request {
         const headers = try get_headers(self.allocator, self.api_key);
         defer self.allocator.free(headers.authorization.override);
 

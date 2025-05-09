@@ -1,10 +1,23 @@
 const std = @import("std");
 const git = @import("git.zig");
 const llm = @import("llm.zig");
+const prompt = @import("prompt.zig");
 const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const process = std.process;
 const log = std.log;
+
+const CommitMessage = struct {
+    subject: []const u8,
+    body: []const u8,
+    footer: []const u8,
+
+    pub fn deinit(self: CommitMessage, allocator: Allocator) void {
+        allocator.free(self.subject);
+        allocator.free(self.body);
+        allocator.free(self.footer);
+    }
+};
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -22,8 +35,6 @@ pub fn main() !void {
 
 fn generateCommit(allocator: Allocator) !void {
     const gitClient = git.Git.init(allocator);
-    var openai = try llm.Client.init(allocator, null);
-    defer openai.deinit();
 
     if (!try gitClient.isGitRepo()) {
         std.log.err("Not a Git repository.", .{});
@@ -69,62 +80,52 @@ fn generateCommit(allocator: Allocator) !void {
     const diff = try gitClient.getStagedDiff();
     defer allocator.free(diff);
 
-    const system_msg =
-        \\You are a helpful assistant specializing in writing clear and informative Git commit messages using the conventional style
-        \\Based on the given code changes or context, generate exactly 1 conventional Git commit message based on the following guidelines.
-        \\1. Message Language: en
-        \\2. Format: follow the conventional Commits format:
-        \\   <type>(<optional scope>): <description>
-        \\
-        \\   [optional body]
-        \\
-        \\   [optional footer(s)]
-        \\3. Types: use one of the following types:
-        \\   docs: Documentation only changes
-        \\   style: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc)
-        \\   refactor: A code change that neither fixes a bug nor adds a feature
-        \\   perf: A code change that improves performance
-        \\   test: Adding missing tests or correcting existing tests
-        \\   build: Changes that affect the build system or external dependencies
-        \\   ci: Changes to CI configuration files, scripts
-        \\   chore: Other changes that don't modify src or test files
-        \\   revert: Reverts a previous Commits
-        \\   feat: A new feature
-        \\   fix: A bug fix
-        \\4. Guidelines for writing commit messages:
-        \\  - Be specific about what changes were made
-        \\  - Use imperative mood ("add feature" not "added feature")
-        \\  - Keep subject line under 50 characters
-        \\  - Do not end the subject line with a period
-        \\  - Use the body to explain what and why vs. how
-        \\5. Focus on:
-        \\  - What problem this commit solves
-        \\  - Why this change was necessary
-        \\  - Any important technical details
-        \\6. Exclude anything unnecessary such as translation or implementation details.
-    ;
+    const commitMsg = try generateCommitMsg(allocator, diff) orelse {
+        std.log.info("No commit message generated.", .{});
+        return;
+    };
+    defer commitMsg.deinit(allocator);
 
-    const prompt = try std.fmt.allocPrint(allocator, "Here is the diff:\n\n{s}", .{diff});
-    defer allocator.free(prompt);
+    try gitClient.commit(commitMsg.subject);
+    try stdout.print("Changes committed successfully!\n\n  {s}\n", .{commitMsg.subject});
+}
+
+fn generateCommitMsg(allocator: Allocator, diff: []const u8) !?CommitMessage {
+    var openai = try llm.Client.init(allocator, null);
+    defer openai.deinit();
+
+    const user_prompt = try std.fmt.allocPrint(allocator, "Here is the diff:\n\n{s}", .{diff});
+    defer allocator.free(user_prompt);
 
     var messages = std.ArrayList(llm.Message).init(allocator);
-    try messages.append(llm.Message.system(system_msg));
-    try messages.append(llm.Message.user(prompt));
+    try messages.append(llm.Message.system(prompt.system));
+    try messages.append(llm.Message.user(user_prompt));
 
     const payload = llm.ChatPayload{
-        .model = "gpt-4o",
+        .model = "gpt-3.5-turbo",
         .messages = messages.items,
-        .max_tokens = 1000,
-        .temperature = 0.2,
+        .max_tokens = 1024,
+        .temperature = 0.7,
     };
 
-    var completion = try openai.chat(payload, false);
+    var completion = try openai.chat(payload);
     defer completion.deinit();
 
-    if (completion.value.choices.len > 0) {
-        const message_content = completion.value.choices[0].message.content;
-        try stdout.print("Completion: {s}\n", .{message_content});
-    } else {
-        try stdout.print("No completion choices received.\n", .{});
+    if (completion.value.choices.len == 0) {
+        return null;
     }
+
+    const msg_content = completion.value.choices[0].message.content;
+    const parsed = std.json.parseFromSliceLeaky(CommitMessage, allocator, msg_content, .{
+        .ignore_unknown_fields = true,
+    }) catch |err| {
+        std.log.err("Failed to parse JSON: {}", .{err});
+        return null;
+    };
+
+    return CommitMessage{
+        .subject = try allocator.dupe(u8, parsed.subject),
+        .body = try allocator.dupe(u8, parsed.body),
+        .footer = try allocator.dupe(u8, parsed.footer),
+    };
 }
