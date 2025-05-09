@@ -63,9 +63,53 @@ fn generateCommit(allocator: Allocator) !void {
         try gitClient.createBranch("wip");
     }
 
+    try gitClient.stageFiles();
+    try stdout.print("Files staged successfully.\n", .{});
+
+    const diff = try gitClient.getStagedDiff();
+    defer allocator.free(diff);
+
+    const system_msg =
+        \\You are a helpful assistant specializing in writing clear and informative Git commit messages using the conventional style
+        \\Based on the given code changes or context, generate exactly 1 conventional Git commit message based on the following guidelines.
+        \\1. Message Language: en
+        \\2. Format: follow the conventional Commits format:
+        \\   <type>(<optional scope>): <description>
+        \\
+        \\   [optional body]
+        \\
+        \\   [optional footer(s)]
+        \\3. Types: use one of the following types:
+        \\   docs: Documentation only changes
+        \\   style: Changes that do not affect the meaning of the code (white-space, formatting, missing semi-colons, etc)
+        \\   refactor: A code change that neither fixes a bug nor adds a feature
+        \\   perf: A code change that improves performance
+        \\   test: Adding missing tests or correcting existing tests
+        \\   build: Changes that affect the build system or external dependencies
+        \\   ci: Changes to CI configuration files, scripts
+        \\   chore: Other changes that don't modify src or test files
+        \\   revert: Reverts a previous Commits
+        \\   feat: A new feature
+        \\   fix: A bug fix
+        \\4. Guidelines for writing commit messages:
+        \\  - Be specific about what changes were made
+        \\  - Use imperative mood ("add feature" not "added feature")
+        \\  - Keep subject line under 50 characters
+        \\  - Do not end the subject line with a period
+        \\  - Use the body to explain what and why vs. how
+        \\5. Focus on:
+        \\  - What problem this commit solves
+        \\  - Why this change was necessary
+        \\  - Any important technical details
+        \\6. Exclude anything unnecessary such as translation or implementation details.
+    ;
+
+    const prompt = try std.fmt.allocPrint(allocator, "Here is the diff:\n\n{s}", .{diff});
+    defer allocator.free(prompt);
+
     var messages = std.ArrayList(llm.Message).init(allocator);
-    try messages.append(llm.Message.system("You are a helpful assistant"));
-    try messages.append(llm.Message.user("Generate a simple commit message"));
+    try messages.append(llm.Message.system(system_msg));
+    try messages.append(llm.Message.user(prompt));
 
     const payload = llm.ChatPayload{
         .model = "gpt-4o",
@@ -77,14 +121,10 @@ fn generateCommit(allocator: Allocator) !void {
     var completion = try openai.chat(payload, false);
     defer completion.deinit();
 
-    // Print the completion content
     if (completion.value.choices.len > 0) {
         const message_content = completion.value.choices[0].message.content;
         try stdout.print("Completion: {s}\n", .{message_content});
     } else {
         try stdout.print("No completion choices received.\n", .{});
     }
-
-    try gitClient.stageFiles();
-    try stdout.print("Files staged successfully.\n", .{});
 }

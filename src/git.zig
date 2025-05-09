@@ -77,6 +77,31 @@ pub const Git = struct {
             return error.CommandFailed;
         }
     }
+
+    pub fn getStagedDiff(self: Git) ![]const u8 {
+        var args = std.ArrayList([]const u8).init(self.allocator);
+        defer args.deinit();
+
+        const default_excludes = [_][]const u8{
+            ":(exclude)^package-lock.json",
+            ":(exclude)^pnpm-lock.yaml",
+            ":(exclude)^*.lock",
+            ":(exclude)*.lockb",
+            ":(exclude)*.gif",
+            ":(exclude)*.png",
+        };
+
+        try args.appendSlice(&[_][]const u8{ "git", "diff", "--cached", "--" });
+        try args.appendSlice(&default_excludes);
+
+        const diff_result = try exec(args.items, self.allocator);
+        if (diff_result.exit_code != 0) {
+            std.log.err("Failed to get staged diff: {s}", .{diff_result.stderr});
+            return error.CommandFailed;
+        }
+
+        return try self.allocator.dupe(u8, diff_result.stdout);
+    }
 };
 
 fn exec(argv: []const []const u8, allocator: Allocator) !ExecResult {
