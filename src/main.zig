@@ -87,7 +87,7 @@ fn generateCommit(allocator: Allocator) !void {
     defer commitMsg.deinit(allocator);
 
     try gitClient.commit(commitMsg.subject);
-    try stdout.print("Changes committed successfully!", .{});
+    try stdout.print("Changes committed successfully!\n\n  {s}\n", .{commitMsg.subject});
 }
 
 fn generateCommitMsg(allocator: Allocator, diff: []const u8) !?CommitMessage {
