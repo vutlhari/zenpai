@@ -87,6 +87,7 @@ fn generateCommit(allocator: Allocator) !void {
     defer commitMsg.deinit(allocator);
 
     try gitClient.commit(commitMsg.subject);
+    try stdout.print("Changes committed successfully!", .{});
 }
 
 fn generateCommitMsg(allocator: Allocator, diff: []const u8) !?CommitMessage {
@@ -107,7 +108,7 @@ fn generateCommitMsg(allocator: Allocator, diff: []const u8) !?CommitMessage {
         .temperature = 0.7,
     };
 
-    var completion = try openai.chat(payload, false);
+    var completion = try openai.chat(payload);
     defer completion.deinit();
 
     if (completion.value.choices.len == 0) {
