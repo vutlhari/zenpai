@@ -1,5 +1,5 @@
 const std = @import("std");
-const git = @import("git.zig");
+const Git = @import("Git.zig");
 const llm = @import("llm.zig");
 const prompt = @import("prompt.zig");
 const builtin = @import("builtin");
@@ -34,19 +34,19 @@ pub fn main() !void {
 }
 
 fn generateCommit(allocator: Allocator) !void {
-    const gitClient = git.Git.init(allocator);
+    var git: Git = .init(allocator);
 
-    if (!try gitClient.isGitRepo()) {
+    if (!try git.isGitRepo()) {
         std.log.err("Not a Git repository.", .{});
         return;
     }
 
-    if (!try gitClient.hasChanges()) {
+    if (!try git.hasChanges()) {
         std.log.info("No changes to commit.", .{});
         return;
     }
 
-    const files_to_stage = try gitClient.filesToBeStaged();
+    const files_to_stage = try git.filesToBeStaged();
     if (files_to_stage == null) {
         std.log.info("No changes to commit.", .{});
         return;
@@ -69,15 +69,15 @@ fn generateCommit(allocator: Allocator) !void {
         return;
     }
 
-    const curr_branch = try gitClient.currentBranch();
+    const curr_branch = try git.currentBranch();
     if (std.mem.eql(u8, curr_branch, "main") or std.mem.eql(u8, curr_branch, "master")) {
-        try gitClient.createBranch("wip");
+        try git.createBranch("wip");
     }
 
-    try gitClient.stageFiles();
+    try git.stageFiles();
     try stdout.print("Files staged successfully.\n", .{});
 
-    const diff = try gitClient.getStagedDiff();
+    const diff = try git.getStagedDiff();
     defer allocator.free(diff);
 
     const commitMsg = try generateCommitMsg(allocator, diff) orelse {
@@ -86,7 +86,7 @@ fn generateCommit(allocator: Allocator) !void {
     };
     defer commitMsg.deinit(allocator);
 
-    try gitClient.commit(commitMsg.subject);
+    try git.commit(commitMsg.subject);
     try stdout.print("Changes committed successfully!\n\n  {s}\n", .{commitMsg.subject});
 }
 
