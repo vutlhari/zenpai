@@ -63,8 +63,8 @@ fn generateCommit(allocator: Allocator) !void {
         orelse return error.InputFailed;
     defer allocator.free(confirm);
 
-    const trimmed = std.mem.trim(u8, confirm, " \n");
-    if (!std.mem.eql(u8, trimmed, "y") and !std.mem.eql(u8, trimmed, "yes")) {
+    const trimmed_confirm = std.mem.trim(u8, confirm, &std.ascii.whitespace);
+    if (!std.mem.eql(u8, trimmed_confirm, "y") and !std.mem.eql(u8, trimmed_confirm, "yes")) {
         try stdout.print("Staging aborted.\n", .{});
         return;
     }
