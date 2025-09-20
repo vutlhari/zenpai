@@ -23,14 +23,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/zig
-            zig-cache
-            zig-out
-          key: ${{ runner.os }}-zig-${{ hashFiles('build.zig', 'build.zig.zon') }}
-          restore-keys: |
-            ${{ runner.os }}-zig-
       - uses: mlugg/setup-zig@v2
       - run: zig build
