@@ -1,0 +1,59 @@
+name: release
+
+permissions:
+  contents: write
+
+on:
+  workflow_dispatch:
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.release.outputs.new_release_version }}
+      released: ${{ steps.release.outputs.new_release_published }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          npm i --save-dev conventional-changelog-conventionalcommits@9
+      - uses: cycjimmy/semantic-release-action@v4
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          branch: main
+          extra_plugins: |
+            @semantic-release/changelog
+            @semantic-release/git
+
+  build-macos-arm64:
+    needs: release
+    if: needs.release.outputs.released == 'true'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: mlugg/setup-zig@v2
+      - run: |
+          sed -i '' 's/\.version = "[^"]*"/\.version = "${{ needs.release.outputs.version }}"/' build.zig.zon
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add build.zig.zon
+          git commit -m "chore: bump version to ${{ needs.release.outputs.version }}"
+          git push
+      - run: zig build -Dtarget=aarch64-macos
+      - name: Upload to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mv zig-out/bin/zenpai zenpai-macos-arm64
+          gh release upload v${{ needs.release.outputs.version }} zenpai-macos-arm64 --clobber
