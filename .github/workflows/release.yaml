@@ -50,7 +50,7 @@ jobs:
           git add build.zig.zon
           git commit -m "chore: bump version to ${{ needs.release.outputs.version }}"
           git push
-      - run: zig build -Dtarget=aarch64-macos
+      - run: zig build -Dtarget=aarch64-macos -Doptimize=ReleaseSafe
       - name: Upload to release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
