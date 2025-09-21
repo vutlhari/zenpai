@@ -117,7 +117,7 @@ fn generateCommitMsg(allocator: Allocator, diff: []const u8) !?CommitMessage {
     try messages.append(OpenAI.Message.user(user_prompt));
 
     const payload = OpenAI.ChatPayload{
-        .model = "gpt-4o-mini",
+        .model = "gpt-5-min",
         .messages = messages.items,
         .max_tokens = 1024,
         .temperature = 0.7,

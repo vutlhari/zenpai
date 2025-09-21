@@ -8,11 +8,6 @@ pub const ExecResult = struct {
     exit_code: u8,
     stdout: []const u8,
     stderr: []const u8,
-
-    pub fn deinit(self: ExecResult, allocator: Allocator) void {
-        allocator.free(self.stdout);
-        allocator.free(self.stderr);
-    }
 };
 
 alloc: Allocator,
@@ -23,8 +18,6 @@ pub fn init(allocator: Allocator) Self {
 
 pub fn isGitRepo(self: *Self) !bool {
     const result = try exec(&[_][]const u8{ "git", "rev-parse", "--is-inside-work-tree" }, self.alloc);
-    defer result.deinit(self.alloc);
-
     if (result.exit_code != 0) {
         return false;
     }
@@ -35,8 +28,6 @@ pub fn isGitRepo(self: *Self) !bool {
 
 pub fn hasChanges(self: *Self) !bool {
     const result = try exec(&[_][]const u8{ "git", "status", "--porcelain" }, self.alloc);
-    defer result.deinit(self.alloc);
-
     if (result.exit_code != 0) {
         return error.CommandFailed;
     }
@@ -46,8 +37,6 @@ pub fn hasChanges(self: *Self) !bool {
 
 pub fn currentBranch(self: *Self) ![]const u8 {
     const result = try exec(&[_][]const u8{ "git", "rev-parse", "--abbrev-ref", "HEAD" }, self.alloc);
-    defer result.deinit(self.alloc);
-
     if (result.exit_code != 0) {
         return error.CommandFailed;
     }
@@ -57,8 +46,6 @@ pub fn currentBranch(self: *Self) ![]const u8 {
 
 pub fn filesToBeStaged(self: *Self) !?[]const u8 {
     const result = try exec(&[_][]const u8{ "git", "status", "--porcelain" }, self.alloc);
-    defer result.deinit(self.alloc);
-
     if (result.exit_code != 0) {
         return error.CommandFailed;
     }
@@ -72,8 +59,6 @@ pub fn filesToBeStaged(self: *Self) !?[]const u8 {
 
 pub fn stageFiles(self: *Self) !void {
     const result = try exec(&[_][]const u8{ "git", "add", "." }, self.alloc);
-    defer result.deinit(self.alloc);
-
     if (result.exit_code != 0) {
         log.err("Failed to stage files: {s}", .{result.stderr});
         return error.CommandFailed;
@@ -82,8 +67,6 @@ pub fn stageFiles(self: *Self) !void {
 
 pub fn commit(self: *Self, commit_msg: []const u8) !void {
     const result = try exec(&[_][]const u8{ "git", "commit", "-m", commit_msg }, self.alloc);
-    defer result.deinit(self.alloc);
-
     if (result.exit_code != 0) {
         log.err("Failed to commit: {s}", .{result.stderr});
         return error.CommandFailed;
@@ -92,8 +75,6 @@ pub fn commit(self: *Self, commit_msg: []const u8) !void {
 
 pub fn createBranch(self: *Self, branch_name: []const u8) !void {
     const result = try exec(&[_][]const u8{ "git", "checkout", "-b", branch_name }, self.alloc);
-    defer result.deinit(self.alloc);
-
     if (result.exit_code != 0) {
         log.err("Failed to create branch: {s}", .{result.stderr});
         return error.CommandFailed;
