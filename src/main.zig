@@ -32,6 +32,11 @@ pub fn main() !void {
             printVersion();
             return;
         }
+
+        if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
+            printHelp();
+            return;
+        }
     }
 
     if (comptime builtin.mode == .Debug) {
@@ -46,6 +51,23 @@ pub fn main() !void {
 fn printVersion() void {
     const version = @import("build_options").version;
     std.debug.print("zenpai v{s}\n", .{version});
+}
+
+fn printHelp() void {
+    std.debug.print(
+        \\Zenpai - AI-powered Git commit message generator
+        \\
+        \\Usage: zenpai [OPTIONS]
+        \\
+        \\Options:
+        \\  -h, --help     Show this help message
+        \\  -v, --version  Show version information
+        \\
+        \\Description:
+        \\  Generates AI-powered commit messages based on your staged changes.
+        \\  Automatically creates a 'wip' branch if you're on main/master.
+        \\
+    , .{});
 }
 
 fn generateCommit(allocator: Allocator) !void {
