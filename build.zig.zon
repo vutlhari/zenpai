@@ -1,6 +1,6 @@
 .{
     .name = .zenpai,
-    .version = "0.1.1",
+    .version = "0.2.0",
     .minimum_zig_version = "0.14.0",
     .fingerprint = 0x8d291c4374a22354,
     .dependencies = .{},
