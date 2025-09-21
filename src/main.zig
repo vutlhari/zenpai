@@ -24,6 +24,16 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
+    const args = try process.argsAlloc(allocator);
+    defer process.argsFree(allocator, args);
+
+    for (args[1..]) |arg| {
+        if (std.mem.eql(u8, arg, "--version") or std.mem.eql(u8, arg, "-v")) {
+            printVersion();
+            return;
+        }
+    }
+
     if (comptime builtin.mode == .Debug) {
         log.warn("This is a debug build. Performance will be very poor.", .{});
         log.warn("You should only use a debug build for developing Zenpai.", .{});
@@ -31,6 +41,11 @@ pub fn main() !void {
     }
 
     try generateCommit(allocator);
+}
+
+fn printVersion() void {
+    const version = @import("build_options").version;
+    std.debug.print("zenpai v{s}\n", .{version});
 }
 
 fn generateCommit(allocator: Allocator) !void {
